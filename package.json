@@ -1,0 +1,25 @@
+{
+  "name": "madev",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@11.9.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "dev:mobile": "npm run start --workspace @madev/mobile",
+    "dev:web": "npm run dev --workspace @madev/web",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck"
+  },
+  "devDependencies": {
+    "next": "16.3.0",
+    "turbo": "2.10.8"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
