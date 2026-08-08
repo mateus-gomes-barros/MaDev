@@ -1,0 +1,17 @@
+{
+  "name": "@madev/data",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@madev/types": "*",
+    "@supabase/supabase-js": "^2.112.2"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}
