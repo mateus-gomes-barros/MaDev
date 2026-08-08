@@ -34,6 +34,107 @@ export type Database = {
   }
   public: {
     Tables: {
+      checklist_items: {
+        Row: {
+          created_at: string
+          description: string | null
+          estimated_minutes: number | null
+          id: string
+          is_required: boolean
+          official_checklist_id: string | null
+          position: number
+          slug: string | null
+          title: string
+          updated_at: string
+          user_checklist_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          estimated_minutes?: number | null
+          id?: string
+          is_required?: boolean
+          official_checklist_id?: string | null
+          position?: number
+          slug?: string | null
+          title: string
+          updated_at?: string
+          user_checklist_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          estimated_minutes?: number | null
+          id?: string
+          is_required?: boolean
+          official_checklist_id?: string | null
+          position?: number
+          slug?: string | null
+          title?: string
+          updated_at?: string
+          user_checklist_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_items_official_checklist_id_fkey"
+            columns: ["official_checklist_id"]
+            isOneToOne: false
+            referencedRelation: "official_checklists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_items_user_checklist_id_fkey"
+            columns: ["user_checklist_id"]
+            isOneToOne: false
+            referencedRelation: "user_checklists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      official_checklists: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_published: boolean
+          position: number
+          skill_id: string
+          slug: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_published?: boolean
+          position?: number
+          skill_id: string
+          slug: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_published?: boolean
+          position?: number
+          skill_id?: string
+          slug?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "official_checklists_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       phases: {
         Row: {
           created_at: string
@@ -405,6 +506,98 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      user_checklist_item_progress: {
+        Row: {
+          checklist_item_id: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          is_completed: boolean
+          notes: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          checklist_item_id: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          is_completed?: boolean
+          notes?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          checklist_item_id?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          is_completed?: boolean
+          notes?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_checklist_item_progress_checklist_item_id_fkey"
+            columns: ["checklist_item_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_checklists: {
+        Row: {
+          created_at: string
+          custom_skill_id: string | null
+          description: string | null
+          id: string
+          position: number
+          skill_id: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          custom_skill_id?: string | null
+          description?: string | null
+          id?: string
+          position?: number
+          skill_id?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          custom_skill_id?: string | null
+          description?: string | null
+          id?: string
+          position?: number
+          skill_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_checklists_custom_skill_id_fkey"
+            columns: ["custom_skill_id"]
+            isOneToOne: false
+            referencedRelation: "user_custom_skills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_checklists_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "skills"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_custom_skills: {
         Row: {
