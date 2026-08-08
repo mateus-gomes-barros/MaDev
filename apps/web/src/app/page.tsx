@@ -1,32 +1,64 @@
-import { appConfig } from "@madev/config";
+import { appConfig } from '@madev/config'
+import { redirect } from 'next/navigation'
+
+import { createClient } from '@/lib/supabase/server'
 
 const metrics = [
-  { label: "Conhecimento", value: "0%" },
-  { label: "Prática", value: "0%" },
-  { label: "Evidências", value: "0%" },
-];
+  { label: 'Conhecimento', value: '0%' },
+  { label: 'Prática', value: '0%' },
+  { label: 'Evidências', value: '0%' },
+]
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient()
+  const { data } = await supabase.auth.getClaims()
+
+  if (!data?.claims) {
+    redirect('/login')
+  }
+
   return (
     <main className="shell">
       <nav className="nav">
         <div className="brand-lockup">
           <span className="logo">M</span>
-          <span className="brand">{appConfig.name}</span>
+          <span className="brand">
+            {appConfig.name}
+          </span>
         </div>
-        <div className="nav-links" aria-label="Navegação principal">
+
+        <div
+          aria-label="Navegação principal"
+          className="nav-links"
+        >
           <a className="active" href="#jornada">
             Jornada
           </a>
           <a href="#progresso">Progresso</a>
           <a href="#projetos">Projetos</a>
         </div>
-        <div className="avatar">MG</div>
+
+        <form
+          action="/auth/signout"
+          className="signout-form"
+          method="post"
+        >
+          <button
+            aria-label="Sair da conta"
+            className="avatar"
+            title="Sair da conta"
+            type="submit"
+          >
+            MG
+          </button>
+        </form>
       </nav>
 
       <section className="content">
         <header className="hero">
-          <p className="eyebrow">SUA JORNADA DEV</p>
+          <p className="eyebrow">
+            SUA JORNADA DEV
+          </p>
           <h1>
             Evolua com <span>direção.</span>
           </h1>
@@ -37,18 +69,29 @@ export default function Home() {
           <article className="journey-card">
             <div className="card-heading">
               <div>
-                <p className="caption">JORNADA ATUAL</p>
+                <p className="caption">
+                  JORNADA ATUAL
+                </p>
                 <h2>Full Stack Developer</h2>
               </div>
               <span className="badge">INÍCIO</span>
             </div>
 
-            <div className="progress-track" aria-label="0% concluído">
+            <div
+              aria-label="0% concluído"
+              className="progress-track"
+            >
               <span />
             </div>
-            <p className="progress-copy">0% da jornada concluída</p>
 
-            <div className="metrics" id="progresso">
+            <p className="progress-copy">
+              0% da jornada concluída
+            </p>
+
+            <div
+              className="metrics"
+              id="progresso"
+            >
               {metrics.map((metric) => (
                 <div key={metric.label}>
                   <strong>{metric.value}</strong>
@@ -61,19 +104,29 @@ export default function Home() {
           <aside className="next-panel">
             <div className="panel-title">
               <div>
-                <p className="caption">RECOMENDAÇÃO</p>
+                <p className="caption">
+                  RECOMENDAÇÃO
+                </p>
                 <h2>Próximo passo</h2>
               </div>
               <span className="spark">✦</span>
             </div>
 
-            <button className="next-step" type="button">
-              <span className="step-number">01</span>
+            <button
+              className="next-step"
+              type="button"
+            >
+              <span className="step-number">
+                01
+              </span>
               <span className="step-content">
                 <small>FUNDAMENTOS DA WEB</small>
-                <strong>Como a internet funciona</strong>
+                <strong>
+                  Como a internet funciona
+                </strong>
                 <span>
-                  Entenda navegador, servidor, DNS e o caminho de uma requisição.
+                  Entenda navegador, servidor, DNS e
+                  o caminho de uma requisição.
                 </span>
               </span>
               <span className="arrow">›</span>
@@ -82,5 +135,5 @@ export default function Home() {
         </div>
       </section>
     </main>
-  );
+  )
 }

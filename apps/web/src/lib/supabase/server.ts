@@ -35,8 +35,8 @@ export async function createClient() {
               },
             )
           } catch {
-            // Cookies cannot be changed from
-            // every Server Component context.
+            // O Proxy atualiza a sessão quando este
+            // cliente é usado em Server Components.
           }
         },
       },
