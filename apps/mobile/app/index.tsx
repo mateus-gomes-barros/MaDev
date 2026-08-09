@@ -8,6 +8,7 @@ import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,6 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 
 const journeySteps = [
@@ -29,12 +31,44 @@ function formatStepNumber(position: number) {
 }
 
 export default function HomeScreen() {
+  const { signOut } = useAuth();
   const [track, setTrack] =
     useState<TrackCatalog | null>(null);
   const [isLoading, setIsLoading] =
     useState(true);
   const [loadError, setLoadError] =
     useState<string | null>(null);
+
+  async function handleSignOut() {
+    const result = await signOut();
+
+    if (result.error) {
+      Alert.alert(
+        "Não foi possível sair",
+        result.error,
+      );
+    }
+  }
+
+  function confirmSignOut() {
+    Alert.alert(
+      "Sair da conta",
+      "Deseja sair da sua conta?",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Sair",
+          style: "destructive",
+          onPress: () => {
+            void handleSignOut();
+          },
+        },
+      ],
+    );
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -93,9 +127,17 @@ export default function HomeScreen() {
             {appConfig.name}
           </Text>
 
-          <View style={styles.avatar}>
+          <Pressable
+            accessibilityLabel="Sair da conta"
+            accessibilityRole="button"
+            onPress={confirmSignOut}
+            style={({ pressed }) => [
+              styles.avatar,
+              pressed && styles.avatarPressed,
+            ]}
+          >
             <Text style={styles.avatarText}>MG</Text>
-          </View>
+          </Pressable>
         </View>
 
         <View style={styles.hero}>
@@ -293,6 +335,9 @@ const styles = StyleSheet.create({
     height: 36,
     justifyContent: "center",
     width: 36,
+  },
+  avatarPressed: {
+    opacity: 0.7,
   },
   avatarText: {
     color: brandColors.textMuted,
