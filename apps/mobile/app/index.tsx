@@ -4,9 +4,11 @@ import {
   type TrackCatalog,
 } from "@madev/data";
 import { brandColors } from "@madev/ui-tokens";
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -191,7 +193,22 @@ export default function HomeScreen() {
               Próximo passo
             </Text>
 
-            <View style={styles.nextCard}>
+            <Pressable
+              disabled={!nextSkill}
+              onPress={() => {
+                if (!nextSkill) {
+                  return;
+                }
+
+                router.push({
+                  pathname: "/skills/[skillSlug]",
+                  params: {
+                    skillSlug: nextSkill.slug,
+                  },
+                });
+              }}
+              style={styles.nextCard}
+            >
               <View style={styles.stepNumber}>
                 <Text
                   style={styles.stepNumberText}
@@ -224,7 +241,7 @@ export default function HomeScreen() {
               </View>
 
               <Text style={styles.arrow}>›</Text>
-            </View>
+            </Pressable>
           </>
         ) : null}
       </ScrollView>
