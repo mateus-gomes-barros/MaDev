@@ -28,6 +28,11 @@ type SkillScreenData = {
   skill: TrackCatalogSkill;
 };
 
+type ChecklistItemProgress = {
+  checklist_item_id: string;
+  is_completed: boolean;
+};
+
 const masteryOptions = [
   {
     value: "not_started",
@@ -131,6 +136,14 @@ export default function SkillScreen() {
   ] = useState(false);
   const [isSaving, setIsSaving] =
     useState(false);
+  const [
+    completedChecklistItemIds,
+    setCompletedChecklistItemIds,
+  ] = useState<Set<string>>(new Set());
+  const [
+    savingChecklistItemId,
+    setSavingChecklistItemId,
+  ] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -201,6 +214,42 @@ export default function SkillScreen() {
           throw progressError;
         }
 
+        const checklistItemIds =
+          result.skill.checklists.flatMap(
+            (checklist) =>
+              checklist.items.map(
+                (item) => item.id,
+              ),
+          );
+
+        let checklistProgress:
+          ChecklistItemProgress[] = [];
+
+        if (checklistItemIds.length > 0) {
+          const {
+            data: checklistProgressData,
+            error: checklistProgressError,
+          } = await supabase
+            .from(
+              "user_checklist_item_progress",
+            )
+            .select(
+              "checklist_item_id, is_completed",
+            )
+            .eq("user_id", userId)
+            .in(
+              "checklist_item_id",
+              checklistItemIds,
+            );
+
+          if (checklistProgressError) {
+            throw checklistProgressError;
+          }
+
+          checklistProgress =
+            checklistProgressData ?? [];
+        }
+
         if (isMounted) {
           const currentStatus =
             progress?.mastery_status ??
@@ -219,6 +268,19 @@ export default function SkillScreen() {
           );
           setHasSavedProgress(
             Boolean(progress),
+          );
+          setCompletedChecklistItemIds(
+            new Set(
+              checklistProgress
+                .filter(
+                  (item) =>
+                    item.is_completed,
+                )
+                .map(
+                  (item) =>
+                    item.checklist_item_id,
+                ),
+            ),
           );
         }
       } catch (error) {
@@ -312,10 +374,97 @@ export default function SkillScreen() {
     setHasSavedProgress(true);
   }
 
+  async function toggleChecklistItem(
+    checklistItemId: string,
+  ) {
+    const userId = session?.user.id;
+
+    if (!userId) {
+      Alert.alert(
+        "Não foi possível salvar",
+        "Entre novamente na sua conta e tente outra vez.",
+      );
+
+      return;
+    }
+
+    const isCompleted =
+      !completedChecklistItemIds.has(
+        checklistItemId,
+      );
+
+    setSavingChecklistItemId(
+      checklistItemId,
+    );
+
+    const { error } = await supabase
+      .from(
+        "user_checklist_item_progress",
+      )
+      .upsert(
+        {
+          user_id: userId,
+          checklist_item_id:
+            checklistItemId,
+          is_completed: isCompleted,
+          completed_at: isCompleted
+            ? new Date().toISOString()
+            : null,
+        },
+        {
+          onConflict:
+            "user_id,checklist_item_id",
+        },
+      );
+
+    setSavingChecklistItemId(null);
+
+    if (error) {
+      console.error(
+        "Erro ao salvar item do checklist:",
+        error,
+      );
+
+      Alert.alert(
+        "Não foi possível salvar",
+        "O item não foi alterado. Tente novamente.",
+      );
+
+      return;
+    }
+
+    setCompletedChecklistItemIds(
+      (currentItems) => {
+        const nextItems =
+          new Set(currentItems);
+
+        if (isCompleted) {
+          nextItems.add(checklistItemId);
+        } else {
+          nextItems.delete(checklistItemId);
+        }
+
+        return nextItems;
+      },
+    );
+  }
+
   const checklistItemCount =
     data?.skill.checklists.reduce(
       (total, checklist) =>
         total + checklist.items.length,
+      0,
+    ) ?? 0;
+
+  const completedChecklistItemCount =
+    data?.skill.checklists.reduce(
+      (total, checklist) =>
+        total +
+        checklist.items.filter((item) =>
+          completedChecklistItemIds.has(
+            item.id,
+          ),
+        ).length,
       0,
     ) ?? 0;
 
@@ -559,7 +708,8 @@ export default function SkillScreen() {
                 <Text
                   style={styles.countBadgeText}
                 >
-                  {checklistItemCount}
+                  {completedChecklistItemCount}
+                  /{checklistItemCount}
                 </Text>
               </View>
             </View>
@@ -592,65 +742,113 @@ export default function SkillScreen() {
 
                     <View style={styles.items}>
                       {checklist.items.map(
-                        (item) => (
-                          <View
-                            key={item.id}
-                            style={styles.item}
-                          >
-                            <View
-                              style={
-                                styles.itemNumber
+                        (item) => {
+                          const isCompleted =
+                            completedChecklistItemIds.has(
+                              item.id,
+                            );
+
+                          const isSavingItem =
+                            savingChecklistItemId ===
+                            item.id;
+
+                          return (
+                            <Pressable
+                              accessibilityLabel={
+                                item.title
                               }
+                              accessibilityRole="checkbox"
+                              accessibilityState={{
+                                checked: isCompleted,
+                                disabled: isSavingItem,
+                              }}
+                              disabled={isSavingItem}
+                              key={item.id}
+                              onPress={() => {
+                                void toggleChecklistItem(
+                                  item.id,
+                                );
+                              }}
+                              style={({ pressed }) => [
+                                styles.item,
+                                isCompleted &&
+                                  styles.itemCompleted,
+                                pressed &&
+                                  styles.pressed,
+                              ]}
                             >
-                              <Text
-                                style={
-                                  styles.itemNumberText
-                                }
+                              <View
+                                style={[
+                                  styles.itemNumber,
+                                  isCompleted &&
+                                    styles.itemNumberCompleted,
+                                ]}
                               >
-                                {formatNumber(
-                                  item.position,
+                                {isSavingItem ? (
+                                  <ActivityIndicator
+                                    color={
+                                      brandColors.accent
+                                    }
+                                    size="small"
+                                  />
+                                ) : (
+                                  <Text
+                                    style={[
+                                      styles.itemNumberText,
+                                      isCompleted &&
+                                        styles.itemNumberTextCompleted,
+                                    ]}
+                                  >
+                                    {isCompleted
+                                      ? "✓"
+                                      : formatNumber(
+                                          item.position,
+                                        )}
+                                  </Text>
                                 )}
-                              </Text>
-                            </View>
+                              </View>
 
-                            <View
-                              style={
-                                styles.itemContent
-                              }
-                            >
-                              <Text
+                              <View
                                 style={
-                                  styles.itemTitle
+                                  styles.itemContent
                                 }
                               >
-                                {item.title}
-                              </Text>
-
-                              {item.description ? (
                                 <Text
-                                  style={
-                                    styles.itemDescription
-                                  }
+                                  style={[
+                                    styles.itemTitle,
+                                    isCompleted &&
+                                      styles.itemTitleCompleted,
+                                  ]}
                                 >
-                                  {item.description}
+                                  {item.title}
                                 </Text>
-                              ) : null}
 
-                              {item.estimatedMinutes ? (
-                                <Text
-                                  style={
-                                    styles.itemDuration
-                                  }
-                                >
-                                  {
-                                    item.estimatedMinutes
-                                  }{" "}
-                                  min
-                                </Text>
-                              ) : null}
-                            </View>
-                          </View>
-                        ),
+                                {item.description ? (
+                                  <Text
+                                    style={
+                                      styles.itemDescription
+                                    }
+                                  >
+                                    {item.description}
+                                  </Text>
+                                ) : null}
+
+                                {item.estimatedMinutes ? (
+                                  <Text
+                                    style={
+                                      styles.itemDuration
+                                    }
+                                  >
+                                    {
+                                      item.estimatedMinutes
+                                    }{" "}
+                                    min
+                                  </Text>
+                                ) : null}
+                              </View>
+                            </Pressable>
+                          );
+                        },
                       )}
                     </View>
                   </View>
@@ -936,9 +1134,16 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     backgroundColor:
       brandColors.surfaceElevated,
+    borderColor: "transparent",
     borderRadius: 16,
+    borderWidth: 1,
     flexDirection: "row",
     padding: 14,
+  },
+  itemCompleted: {
+    backgroundColor:
+      brandColors.accentSoft,
+    borderColor: brandColors.accent,
   },
   itemNumber: {
     alignItems: "center",
@@ -951,10 +1156,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 36,
   },
+  itemNumberCompleted: {
+    backgroundColor: brandColors.accent,
+    borderColor: brandColors.accent,
+  },
   itemNumberText: {
     color: brandColors.accent,
     fontSize: 11,
     fontWeight: "900",
+  },
+  itemNumberTextCompleted: {
+    color: brandColors.background,
+    fontSize: 16,
   },
   itemContent: {
     flex: 1,
@@ -965,6 +1178,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
     lineHeight: 19,
+  },
+  itemTitleCompleted: {
+    color: brandColors.textMuted,
+    textDecorationLine: "line-through",
   },
   itemDescription: {
     color: brandColors.textMuted,
