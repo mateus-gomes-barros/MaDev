@@ -1,7 +1,20 @@
 import { appConfig } from "@madev/config";
+import {
+  getFullStackTrack,
+  type TrackCatalog,
+} from "@madev/data";
 import { brandColors } from "@madev/ui-tokens";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+
+import { supabase } from "../lib/supabase";
 
 const journeySteps = [
   { label: "Conhecimento", value: "0%" },
@@ -9,7 +22,60 @@ const journeySteps = [
   { label: "Evidências", value: "0%" },
 ];
 
+function formatStepNumber(position: number) {
+  return String(position).padStart(2, "0");
+}
+
 export default function HomeScreen() {
+  const [track, setTrack] =
+    useState<TrackCatalog | null>(null);
+  const [isLoading, setIsLoading] =
+    useState(true);
+  const [loadError, setLoadError] =
+    useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadTrack() {
+      try {
+        const fullStackTrack =
+          await getFullStackTrack(supabase);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setTrack(fullStackTrack);
+
+        if (!fullStackTrack) {
+          setLoadError(
+            "A jornada Full Stack ainda não foi publicada.",
+          );
+        }
+      } catch {
+        if (isMounted) {
+          setLoadError(
+            "Não foi possível carregar a jornada. Verifique sua conexão e tente novamente.",
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadTrack();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const currentPhase = track?.phases[0];
+  const nextSkill = currentPhase?.skills[0];
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -20,58 +86,147 @@ export default function HomeScreen() {
           <View style={styles.logo}>
             <Text style={styles.logoText}>M</Text>
           </View>
-          <Text style={styles.brand}>{appConfig.name}</Text>
+
+          <Text style={styles.brand}>
+            {appConfig.name}
+          </Text>
+
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>MG</Text>
           </View>
         </View>
 
         <View style={styles.hero}>
-          <Text style={styles.eyebrow}>SUA JORNADA DEV</Text>
-          <Text style={styles.title}>Evolua com direção.</Text>
-          <Text style={styles.description}>{appConfig.valueProposition}</Text>
+          <Text style={styles.eyebrow}>
+            SUA JORNADA DEV
+          </Text>
+          <Text style={styles.title}>
+            Evolua com direção.
+          </Text>
+          <Text style={styles.description}>
+            {appConfig.valueProposition}
+          </Text>
         </View>
 
-        <View style={styles.progressCard}>
-          <View style={styles.cardHeader}>
-            <View>
-              <Text style={styles.cardCaption}>JORNADA ATUAL</Text>
-              <Text style={styles.cardTitle}>Full Stack Developer</Text>
-            </View>
-            <View style={styles.levelBadge}>
-              <Text style={styles.levelBadgeText}>INÍCIO</Text>
-            </View>
-          </View>
-
-          <View style={styles.progressTrack}>
-            <View style={styles.progressValue} />
-          </View>
-          <Text style={styles.progressLabel}>0% da jornada concluída</Text>
-
-          <View style={styles.metrics}>
-            {journeySteps.map((step) => (
-              <View key={step.label} style={styles.metric}>
-                <Text style={styles.metricValue}>{step.value}</Text>
-                <Text style={styles.metricLabel}>{step.label}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <Text style={styles.sectionTitle}>Próximo passo</Text>
-        <View style={styles.nextCard}>
-          <View style={styles.stepNumber}>
-            <Text style={styles.stepNumberText}>01</Text>
-          </View>
-          <View style={styles.nextContent}>
-            <Text style={styles.nextCaption}>FUNDAMENTOS DA WEB</Text>
-            <Text style={styles.nextTitle}>Como a internet funciona</Text>
-            <Text style={styles.nextDescription}>
-              Entenda navegador, servidor, DNS e o caminho de uma requisição.
+        {isLoading ? (
+          <View style={styles.stateCard}>
+            <ActivityIndicator
+              color={brandColors.accent}
+              size="large"
+            />
+            <Text style={styles.stateTitle}>
+              Carregando sua jornada
+            </Text>
+            <Text style={styles.stateDescription}>
+              Buscando as fases e habilidades da
+              jornada Full Stack.
             </Text>
           </View>
-          <Text style={styles.arrow}>›</Text>
-        </View>
+        ) : loadError ? (
+          <View style={styles.stateCard}>
+            <Text style={styles.stateSymbol}>!</Text>
+            <Text style={styles.stateTitle}>
+              Jornada indisponível
+            </Text>
+            <Text style={styles.stateDescription}>
+              {loadError}
+            </Text>
+          </View>
+        ) : track ? (
+          <>
+            <View style={styles.progressCard}>
+              <View style={styles.cardHeader}>
+                <View
+                  style={styles.cardHeaderContent}
+                >
+                  <Text style={styles.cardCaption}>
+                    JORNADA ATUAL
+                  </Text>
+                  <Text style={styles.cardTitle}>
+                    {track.name}
+                  </Text>
+                </View>
+
+                <View style={styles.levelBadge}>
+                  <Text
+                    style={styles.levelBadgeText}
+                  >
+                    {currentPhase
+                      ? `FASE ${currentPhase.position}`
+                      : "INÍCIO"}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.progressTrack}>
+                <View style={styles.progressValue} />
+              </View>
+
+              <Text style={styles.progressLabel}>
+                0% da jornada concluída
+              </Text>
+
+              <View style={styles.metrics}>
+                {journeySteps.map((step) => (
+                  <View
+                    key={step.label}
+                    style={styles.metric}
+                  >
+                    <Text
+                      style={styles.metricValue}
+                    >
+                      {step.value}
+                    </Text>
+                    <Text
+                      style={styles.metricLabel}
+                    >
+                      {step.label}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <Text style={styles.sectionTitle}>
+              Próximo passo
+            </Text>
+
+            <View style={styles.nextCard}>
+              <View style={styles.stepNumber}>
+                <Text
+                  style={styles.stepNumberText}
+                >
+                  {nextSkill
+                    ? formatStepNumber(
+                        nextSkill.position,
+                      )
+                    : "01"}
+                </Text>
+              </View>
+
+              <View style={styles.nextContent}>
+                <Text style={styles.nextCaption}>
+                  {currentPhase?.name.toUpperCase() ??
+                    "JORNADA FULL STACK"}
+                </Text>
+
+                <Text style={styles.nextTitle}>
+                  {nextSkill?.name ??
+                    "Jornada em preparação"}
+                </Text>
+
+                <Text
+                  style={styles.nextDescription}
+                >
+                  {nextSkill?.description ??
+                    "O próximo conteúdo será exibido assim que estiver publicado."}
+                </Text>
+              </View>
+
+              <Text style={styles.arrow}>›</Text>
+            </View>
+          </>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -113,7 +268,8 @@ const styles = StyleSheet.create({
   },
   avatar: {
     alignItems: "center",
-    backgroundColor: brandColors.surfaceElevated,
+    backgroundColor:
+      brandColors.surfaceElevated,
     borderColor: brandColors.border,
     borderRadius: 18,
     borderWidth: 1,
@@ -151,6 +307,34 @@ const styles = StyleSheet.create({
     marginTop: 12,
     maxWidth: 340,
   },
+  stateCard: {
+    alignItems: "center",
+    backgroundColor: brandColors.surface,
+    borderColor: brandColors.border,
+    borderRadius: 24,
+    borderWidth: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 42,
+  },
+  stateSymbol: {
+    color: brandColors.accent,
+    fontSize: 32,
+    fontWeight: "900",
+  },
+  stateTitle: {
+    color: brandColors.text,
+    fontSize: 18,
+    fontWeight: "800",
+    marginTop: 16,
+    textAlign: "center",
+  },
+  stateDescription: {
+    color: brandColors.textMuted,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 8,
+    textAlign: "center",
+  },
   progressCard: {
     backgroundColor: brandColors.surface,
     borderColor: brandColors.border,
@@ -162,6 +346,10 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     flexDirection: "row",
     justifyContent: "space-between",
+  },
+  cardHeaderContent: {
+    flex: 1,
+    paddingRight: 12,
   },
   cardCaption: {
     color: brandColors.textSubtle,
@@ -188,7 +376,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   progressTrack: {
-    backgroundColor: brandColors.surfaceElevated,
+    backgroundColor:
+      brandColors.surfaceElevated,
     borderRadius: 99,
     height: 8,
     marginTop: 24,

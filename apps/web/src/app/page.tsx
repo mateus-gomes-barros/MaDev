@@ -1,4 +1,8 @@
 import { appConfig } from '@madev/config'
+import {
+  getFullStackTrack,
+  type TrackCatalog,
+} from '@madev/data'
 import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
@@ -9,6 +13,10 @@ const metrics = [
   { label: 'Evidências', value: '0%' },
 ]
 
+function formatStepNumber(position: number) {
+  return String(position).padStart(2, '0')
+}
+
 export default async function Home() {
   const supabase = await createClient()
   const { data } = await supabase.auth.getClaims()
@@ -16,6 +24,41 @@ export default async function Home() {
   if (!data?.claims) {
     redirect('/login')
   }
+
+  let track: TrackCatalog | null = null
+  let trackError = false
+
+  try {
+    track = await getFullStackTrack(supabase)
+  } catch (error) {
+    trackError = true
+    console.error(
+      'Não foi possível carregar a jornada Full Stack.',
+      error,
+    )
+  }
+
+  const currentPhase = track?.phases[0]
+  const nextSkill = currentPhase?.skills[0]
+
+  const journeyTitle =
+    track?.name ?? 'Jornada Full Stack'
+
+  const recommendationCaption =
+    currentPhase?.name.toUpperCase() ??
+    'JORNADA FULL STACK'
+
+  const recommendationTitle =
+    nextSkill?.name ??
+    (trackError
+      ? 'Não foi possível carregar'
+      : 'Jornada em preparação')
+
+  const recommendationDescription =
+    nextSkill?.description ??
+    (trackError
+      ? 'Verifique a conexão com o Supabase e tente novamente.'
+      : 'O próximo conteúdo será exibido assim que estiver publicado.')
 
   return (
     <main className="shell">
@@ -72,9 +115,14 @@ export default async function Home() {
                 <p className="caption">
                   JORNADA ATUAL
                 </p>
-                <h2>Full Stack Developer</h2>
+                <h2>{journeyTitle}</h2>
               </div>
-              <span className="badge">INÍCIO</span>
+
+              <span className="badge">
+                {currentPhase
+                  ? `FASE ${currentPhase.position}`
+                  : 'INÍCIO'}
+              </span>
             </div>
 
             <div
@@ -117,18 +165,25 @@ export default async function Home() {
               type="button"
             >
               <span className="step-number">
-                01
+                {nextSkill
+                  ? formatStepNumber(
+                      nextSkill.position,
+                    )
+                  : '01'}
               </span>
+
               <span className="step-content">
-                <small>FUNDAMENTOS DA WEB</small>
+                <small>
+                  {recommendationCaption}
+                </small>
                 <strong>
-                  Como a internet funciona
+                  {recommendationTitle}
                 </strong>
                 <span>
-                  Entenda navegador, servidor, DNS e
-                  o caminho de uma requisição.
+                  {recommendationDescription}
                 </span>
               </span>
+
               <span className="arrow">›</span>
             </button>
           </aside>
