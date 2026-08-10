@@ -10,12 +10,18 @@ import {
 } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+  InputAccessoryView,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   ActivityIndicator,
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -31,6 +37,65 @@ type SkillScreenData = {
 type ChecklistItemProgress = {
   checklist_item_id: string;
   is_completed: boolean;
+};
+
+
+const evidenceOptions = [
+  {
+    value: "github_repository",
+    label: "GitHub",
+  },
+  {
+    value: "live_project",
+    label: "Projeto online",
+  },
+  {
+    value: "project",
+    label: "Projeto",
+  },
+  {
+    value: "certificate",
+    label: "Certificado",
+  },
+  {
+    value: "image",
+    label: "Imagem",
+  },
+  {
+    value: "note",
+    label: "Anotação",
+  },
+  {
+    value: "professional_experience",
+    label: "Experiência",
+  },
+] as const;
+
+type EvidenceType =
+  (typeof evidenceOptions)[number]["value"];
+
+type SkillEvidence = {
+  id: string;
+  type: EvidenceType;
+  title: string;
+  description: string | null;
+  url: string | null;
+  verification_status:
+    | "unverified"
+    | "pending"
+    | "verified"
+    | "rejected";
+  created_at: string;
+};
+
+const verificationLabels: Record<
+  SkillEvidence["verification_status"],
+  string
+> = {
+  unverified: "Não verificada",
+  pending: "Em análise",
+  verified: "Verificada",
+  rejected: "Rejeitada",
 };
 
 const masteryOptions = [
@@ -97,6 +162,42 @@ function formatNumber(position: number) {
   return String(position).padStart(2, "0");
 }
 
+
+function getEvidenceTypeLabel(
+  type: EvidenceType,
+) {
+  return (
+    evidenceOptions.find(
+      (option) => option.value === type,
+    )?.label ?? "Evidência"
+  );
+}
+
+function normalizeEvidenceUrl(
+  value: string,
+) {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return null;
+  }
+
+  const normalizedValue =
+    /^https?:\/\//i.test(trimmedValue)
+      ? trimmedValue
+      : "https://" + trimmedValue;
+
+  if (
+    !/^https?:\/\/[^\s]+$/i.test(
+      normalizedValue,
+    )
+  ) {
+    return undefined;
+  }
+
+  return normalizedValue;
+}
+
 export default function SkillScreen() {
   const { session } = useAuth();
 
@@ -144,6 +245,25 @@ export default function SkillScreen() {
     savingChecklistItemId,
     setSavingChecklistItemId,
   ] = useState<string | null>(null);
+
+  const [evidenceItems, setEvidenceItems] =
+    useState<SkillEvidence[]>([]);
+  const [evidenceType, setEvidenceType] =
+    useState<EvidenceType>(
+      "github_repository",
+    );
+  const [evidenceTitle, setEvidenceTitle] =
+    useState("");
+  const [
+    evidenceDescription,
+    setEvidenceDescription,
+  ] = useState("");
+  const [evidenceUrl, setEvidenceUrl] =
+    useState("");
+  const [
+    isSavingEvidence,
+    setIsSavingEvidence,
+  ] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -250,12 +370,33 @@ export default function SkillScreen() {
             checklistProgressData ?? [];
         }
 
+        const {
+          data: evidenceData,
+          error: evidenceError,
+        } = await supabase
+          .from("skill_evidence")
+          .select(
+            "id, type, title, description, url, verification_status, created_at",
+          )
+          .eq("user_id", userId)
+          .eq("skill_id", result.skill.id)
+          .order("created_at", {
+            ascending: false,
+          });
+
+        if (evidenceError) {
+          throw evidenceError;
+        }
+
         if (isMounted) {
           const currentStatus =
             progress?.mastery_status ??
             "not_started";
 
           setData(result);
+          setEvidenceItems(
+            evidenceData ?? [],
+          );
           setMasteryStatus(currentStatus);
           setSavedMasteryStatus(
             currentStatus,
@@ -449,6 +590,118 @@ export default function SkillScreen() {
     );
   }
 
+  async function addEvidence() {
+    const userId = session?.user.id;
+    const title = evidenceTitle.trim();
+
+    if (!userId || !data) {
+      Alert.alert(
+        "Não foi possível salvar",
+        "Entre novamente na sua conta e tente outra vez.",
+      );
+
+      return;
+    }
+
+    if (!title) {
+      Alert.alert(
+        "Título obrigatório",
+        "Informe um título para identificar esta evidência.",
+      );
+
+      return;
+    }
+
+    const normalizedUrl =
+      normalizeEvidenceUrl(evidenceUrl);
+
+    if (normalizedUrl === undefined) {
+      Alert.alert(
+        "Link inválido",
+        "Informe um link válido ou deixe o campo vazio.",
+      );
+
+      return;
+    }
+
+    setIsSavingEvidence(true);
+
+    const {
+      data: createdEvidence,
+      error,
+    } = await supabase
+      .from("skill_evidence")
+      .insert({
+        user_id: userId,
+        skill_id: data.skill.id,
+        type: evidenceType,
+        title,
+        description:
+          evidenceDescription.trim() || null,
+        url: normalizedUrl,
+      })
+      .select(
+        "id, type, title, description, url, verification_status, created_at",
+      )
+      .single();
+
+    setIsSavingEvidence(false);
+
+    if (error || !createdEvidence) {
+      console.error(
+        "Erro ao salvar evidência:",
+        error,
+      );
+
+      Alert.alert(
+        "Não foi possível salvar",
+        "A evidência não foi adicionada. Tente novamente.",
+      );
+
+      return;
+    }
+
+    setEvidenceItems((currentItems) => [
+      createdEvidence,
+      ...currentItems,
+    ]);
+    setEvidenceTitle("");
+    setEvidenceDescription("");
+    setEvidenceUrl("");
+
+    Alert.alert(
+      "Evidência adicionada",
+      "Sua prática foi vinculada a esta habilidade.",
+    );
+  }
+
+  async function openEvidenceUrl(
+    url: string,
+  ) {
+    try {
+      const canOpen =
+        await Linking.canOpenURL(url);
+
+      if (!canOpen) {
+        throw new Error(
+          "URL não suportada.",
+        );
+      }
+
+      await Linking.openURL(url);
+    } catch (error) {
+      console.error(
+        "Erro ao abrir evidência:",
+        error,
+      );
+
+      Alert.alert(
+        "Não foi possível abrir",
+        "Confira se o link da evidência está correto.",
+      );
+    }
+  }
+
   const checklistItemCount =
     data?.skill.checklists.reduce(
       (total, checklist) =>
@@ -470,10 +723,28 @@ export default function SkillScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
+      <KeyboardAvoidingView
+          behavior={
+            Platform.OS === "ios"
+              ? "padding"
+              : undefined
+          }
+          style={styles.keyboardAvoidingView}
+        >
+          <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
-      >
+      
+              keyboardDismissMode={
+                Platform.OS === "ios"
+                  ? "interactive"
+                  : "on-drag"
+              }
+              keyboardShouldPersistTaps="handled"
+              onScrollBeginDrag={() =>
+                Keyboard.dismiss()
+              }
+            >
         <View style={styles.header}>
           <Pressable
             accessibilityLabel="Voltar"
@@ -870,9 +1141,305 @@ export default function SkillScreen() {
             )}
 
 
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.sectionEyebrow}>
+                  SUA PRÁTICA
+                </Text>
+
+                <Text style={styles.sectionTitle}>
+                  Evidências
+                </Text>
+              </View>
+
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>
+                  {evidenceItems.length}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.evidenceForm}>
+              <Text style={styles.evidenceFormTitle}>
+                Adicionar evidência
+              </Text>
+
+              <Text
+                style={
+                  styles.evidenceFormDescription
+                }
+              >
+                Registre onde você aplicou ou
+                comprovou esta habilidade.
+              </Text>
+
+              <Text style={styles.inputLabel}>
+                Tipo
+              </Text>
+
+              <View
+                style={styles.evidenceTypeOptions}
+              >
+                {evidenceOptions.map((option) => {
+                  const isSelected =
+                    evidenceType === option.value;
+
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{
+                        selected: isSelected,
+                      }}
+                      key={option.value}
+                      onPress={() =>
+                        setEvidenceType(
+                          option.value,
+                        )
+                      }
+                      style={({ pressed }) => [
+                        styles.evidenceTypeButton,
+                        isSelected &&
+                          styles.evidenceTypeButtonSelected,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.evidenceTypeText,
+                          isSelected &&
+                            styles.evidenceTypeTextSelected,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.inputLabel}>
+                Título
+              </Text>
+
+              <TextInput
+                    inputAccessoryViewID="evidenceKeyboardAccessory"
+                autoCapitalize="sentences"
+                onChangeText={setEvidenceTitle}
+                placeholder="Ex.: Portfólio pessoal"
+                placeholderTextColor={
+                  brandColors.textMuted
+                }
+                style={styles.input}
+                value={evidenceTitle}
+              />
+
+              <Text style={styles.inputLabel}>
+                Descrição
+              </Text>
+
+              <TextInput
+                    inputAccessoryViewID="evidenceKeyboardAccessory"
+                autoCapitalize="sentences"
+                multiline
+                onChangeText={
+                  setEvidenceDescription
+                }
+                placeholder="Conte como você aplicou esta habilidade"
+                placeholderTextColor={
+                  brandColors.textMuted
+                }
+                style={[
+                  styles.input,
+                  styles.textArea,
+                ]}
+                textAlignVertical="top"
+                value={evidenceDescription}
+              />
+
+              <Text style={styles.inputLabel}>
+                Link opcional
+              </Text>
+
+              <TextInput
+                    inputAccessoryViewID="evidenceKeyboardAccessory"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                    onSubmitEditing={() =>
+                      Keyboard.dismiss()
+                    }
+                    returnKeyType="done"
+                onChangeText={setEvidenceUrl}
+                placeholder="github.com/usuario/projeto"
+                placeholderTextColor={
+                  brandColors.textMuted
+                }
+                style={styles.input}
+                value={evidenceUrl}
+              />
+
+              <Pressable
+                accessibilityRole="button"
+                disabled={
+                  isSavingEvidence ||
+                  !evidenceTitle.trim()
+                }
+                onPress={() => {
+                  void addEvidence();
+                }}
+                style={({ pressed }) => [
+                  styles.addEvidenceButton,
+                  (isSavingEvidence ||
+                    !evidenceTitle.trim()) &&
+                    styles.saveButtonDisabled,
+                  pressed && styles.pressed,
+                ]}
+              >
+                {isSavingEvidence ? (
+                  <ActivityIndicator
+                    color={brandColors.background}
+                    size="small"
+                  />
+                ) : null}
+
+                <Text
+                  style={
+                    styles.addEvidenceButtonText
+                  }
+                >
+                  {isSavingEvidence
+                    ? "Adicionando..."
+                    : "Adicionar evidência"}
+                </Text>
+              </Pressable>
+            </View>
+
+            {evidenceItems.length > 0 ? (
+              <View style={styles.evidenceList}>
+                {evidenceItems.map((evidence) => (
+                  <View
+                    key={evidence.id}
+                    style={styles.evidenceCard}
+                  >
+                    <View
+                      style={
+                        styles.evidenceCardHeader
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.evidenceTypeLabel
+                        }
+                      >
+                        {getEvidenceTypeLabel(
+                          evidence.type,
+                        )}
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.verificationLabel
+                        }
+                      >
+                        {
+                          verificationLabels[
+                            evidence
+                              .verification_status
+                          ]
+                        }
+                      </Text>
+                    </View>
+
+                    <Text
+                      style={styles.evidenceTitle}
+                    >
+                      {evidence.title}
+                    </Text>
+
+                    {evidence.description ? (
+                      <Text
+                        style={
+                          styles.evidenceDescription
+                        }
+                      >
+                        {evidence.description}
+                      </Text>
+                    ) : null}
+
+                    {evidence.url ? (
+                      <Pressable
+                        accessibilityRole="link"
+                        onPress={() => {
+                          void openEvidenceUrl(
+                            evidence.url!,
+                          );
+                        }}
+                        style={({ pressed }) => [
+                          styles.evidenceLinkButton,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <Text
+                          numberOfLines={1}
+                          style={styles.evidenceLink}
+                        >
+                          Abrir evidência ↗
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyTitle}>
+                  Nenhuma evidência adicionada
+                </Text>
+
+                <Text
+                  style={styles.emptyDescription}
+                >
+                  Projetos, certificados e
+                  experiências aparecerão aqui.
+                </Text>
+              </View>
+            )}
+
           </>
         ) : null}
       </ScrollView>
+
+          {Platform.OS === "ios" ? (
+            <InputAccessoryView
+              nativeID="evidenceKeyboardAccessory"
+            >
+              <View
+                style={styles.keyboardAccessory}
+              >
+                <Pressable
+                  accessibilityLabel="Fechar teclado"
+                  accessibilityRole="button"
+                  hitSlop={10}
+                  onPress={() =>
+                    Keyboard.dismiss()
+                  }
+                  style={({ pressed }) => [
+                    styles.keyboardDoneButton,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text
+                    style={
+                      styles.keyboardDoneText
+                    }
+                  >
+                    Concluir
+                  </Text>
+                </Pressable>
+              </View>
+            </InputAccessoryView>
+          ) : null}
+        </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -882,7 +1449,10 @@ const styles = StyleSheet.create({
     backgroundColor: brandColors.background,
     flex: 1,
   },
-  container: {
+  keyboardAvoidingView: {
+        flex: 1,
+      },
+      container: {
     paddingBottom: 48,
     paddingHorizontal: 22,
   },
@@ -1194,6 +1764,156 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     marginTop: 8,
+  },
+  evidenceForm: {
+    backgroundColor: brandColors.surface,
+    borderColor: brandColors.border,
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 18,
+  },
+  evidenceFormTitle: {
+    color: brandColors.text,
+    fontSize: 17,
+    fontWeight: "900",
+  },
+  evidenceFormDescription: {
+    color: brandColors.textMuted,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 6,
+  },
+  inputLabel: {
+    color: brandColors.text,
+    fontSize: 11,
+    fontWeight: "800",
+    marginBottom: 8,
+    marginTop: 18,
+  },
+  evidenceTypeOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  evidenceTypeButton: {
+    backgroundColor:
+      brandColors.surfaceElevated,
+    borderColor: brandColors.border,
+    borderRadius: 99,
+    borderWidth: 1,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+  },
+  evidenceTypeButtonSelected: {
+    backgroundColor:
+      brandColors.accentSoft,
+    borderColor: brandColors.accent,
+  },
+  evidenceTypeText: {
+    color: brandColors.textMuted,
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  evidenceTypeTextSelected: {
+    color: brandColors.accent,
+  },
+  input: {
+    backgroundColor:
+      brandColors.surfaceElevated,
+    borderColor: brandColors.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    color: brandColors.text,
+    fontSize: 13,
+    minHeight: 48,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  textArea: {
+    minHeight: 96,
+  },
+  addEvidenceButton: {
+    alignItems: "center",
+    backgroundColor: brandColors.accent,
+    borderRadius: 16,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    marginTop: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 15,
+  },
+  addEvidenceButtonText: {
+    color: brandColors.background,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  keyboardAccessory: {
+        alignItems: "flex-end",
+        backgroundColor:
+          brandColors.surfaceElevated,
+        borderTopColor: brandColors.border,
+        borderTopWidth: 1,
+        paddingHorizontal: 18,
+        paddingVertical: 11,
+      },
+      keyboardDoneButton: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+      },
+      keyboardDoneText: {
+        color: brandColors.accent,
+        fontSize: 15,
+        fontWeight: "900",
+      },
+      evidenceList: {
+    gap: 12,
+    marginTop: 14,
+  },
+  evidenceCard: {
+    backgroundColor: brandColors.surface,
+    borderColor: brandColors.border,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 17,
+  },
+  evidenceCardHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  evidenceTypeLabel: {
+    color: brandColors.accent,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  verificationLabel: {
+    color: brandColors.textMuted,
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  evidenceTitle: {
+    color: brandColors.text,
+    fontSize: 15,
+    fontWeight: "900",
+    marginTop: 12,
+  },
+  evidenceDescription: {
+    color: brandColors.textMuted,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 6,
+  },
+  evidenceLinkButton: {
+    alignSelf: "flex-start",
+    marginTop: 13,
+  },
+  evidenceLink: {
+    color: brandColors.accent,
+    fontSize: 11,
+    fontWeight: "900",
   },
   emptyCard: {
     backgroundColor: brandColors.surface,
