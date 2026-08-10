@@ -34,6 +34,113 @@ export type Database = {
   }
   public: {
     Tables: {
+      badge_requirements: {
+        Row: {
+          badge_id: string
+          created_at: string
+          details: Json
+          id: string
+          is_required: boolean
+          metric: Database["public"]["Enums"]["badge_metric"]
+          sort_order: number
+          target_value: number
+          updated_at: string
+        }
+        Insert: {
+          badge_id: string
+          created_at?: string
+          details?: Json
+          id?: string
+          is_required?: boolean
+          metric: Database["public"]["Enums"]["badge_metric"]
+          sort_order?: number
+          target_value: number
+          updated_at?: string
+        }
+        Update: {
+          badge_id?: string
+          created_at?: string
+          details?: Json
+          id?: string
+          is_required?: boolean
+          metric?: Database["public"]["Enums"]["badge_metric"]
+          sort_order?: number
+          target_value?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "badge_requirements_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      badges: {
+        Row: {
+          award_mode: Database["public"]["Enums"]["badge_award_mode"]
+          category: Database["public"]["Enums"]["badge_category"]
+          created_at: string
+          description: string
+          icon_key: string
+          id: string
+          is_published: boolean
+          name: string
+          phase_id: string | null
+          slug: string
+          sort_order: number
+          track_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          award_mode?: Database["public"]["Enums"]["badge_award_mode"]
+          category: Database["public"]["Enums"]["badge_category"]
+          created_at?: string
+          description: string
+          icon_key?: string
+          id?: string
+          is_published?: boolean
+          name: string
+          phase_id?: string | null
+          slug: string
+          sort_order?: number
+          track_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          award_mode?: Database["public"]["Enums"]["badge_award_mode"]
+          category?: Database["public"]["Enums"]["badge_category"]
+          created_at?: string
+          description?: string
+          icon_key?: string
+          id?: string
+          is_published?: boolean
+          name?: string
+          phase_id?: string | null
+          slug?: string
+          sort_order?: number
+          track_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "badges_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "phases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "badges_track_id_fkey"
+            columns: ["track_id"]
+            isOneToOne: false
+            referencedRelation: "tracks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checklist_items: {
         Row: {
           created_at: string
@@ -507,6 +614,62 @@ export type Database = {
         }
         Relationships: []
       }
+      user_badges: {
+        Row: {
+          awarded_at: string | null
+          badge_id: string
+          created_at: string
+          evaluation_snapshot: Json
+          evidence_score: number | null
+          id: string
+          knowledge_score: number | null
+          practice_score: number | null
+          readiness_score: number | null
+          revoked_at: string | null
+          status: Database["public"]["Enums"]["badge_achievement_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          awarded_at?: string | null
+          badge_id: string
+          created_at?: string
+          evaluation_snapshot?: Json
+          evidence_score?: number | null
+          id?: string
+          knowledge_score?: number | null
+          practice_score?: number | null
+          readiness_score?: number | null
+          revoked_at?: string | null
+          status?: Database["public"]["Enums"]["badge_achievement_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          awarded_at?: string | null
+          badge_id?: string
+          created_at?: string
+          evaluation_snapshot?: Json
+          evidence_score?: number | null
+          id?: string
+          knowledge_score?: number | null
+          practice_score?: number | null
+          readiness_score?: number | null
+          revoked_at?: string | null
+          status?: Database["public"]["Enums"]["badge_achievement_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_checklist_item_progress: {
         Row: {
           checklist_item_id: string
@@ -773,6 +936,16 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      badge_achievement_status: "eligible" | "awarded" | "revoked"
+      badge_award_mode: "automatic" | "review_required" | "manual"
+      badge_category:
+        | "capability"
+        | "portfolio"
+        | "career"
+        | "seniority"
+        | "market"
+        | "platform"
+      badge_metric: "knowledge" | "practice" | "evidence" | "readiness"
       content_source: "official" | "ai_suggested" | "team_approved"
       evidence_type:
         | "github_repository"
@@ -921,6 +1094,17 @@ export const Constants = {
   },
   public: {
     Enums: {
+      badge_achievement_status: ["eligible", "awarded", "revoked"],
+      badge_award_mode: ["automatic", "review_required", "manual"],
+      badge_category: [
+        "capability",
+        "portfolio",
+        "career",
+        "seniority",
+        "market",
+        "platform",
+      ],
+      badge_metric: ["knowledge", "practice", "evidence", "readiness"],
       content_source: ["official", "ai_suggested", "team_approved"],
       evidence_type: [
         "github_repository",
